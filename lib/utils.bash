@@ -36,16 +36,89 @@ list_all_versions() {
   list_github_tags
 }
 
+get_arch() {
+  arch=$(uname -m | tr '[:upper:]' '[:lower:]')
+  case ${arch} in
+    arm64)
+      arch='arm64'
+      ;;
+    x86_64)
+      arch='x86_64'
+      ;;
+    aarch64)
+      arch='arm64'
+      ;;
+    i386)
+      arch='i386'
+      ;;
+  esac
+
+  echo ${arch}
+}
+
+get_platform() {
+  plat=$(uname | tr '[:upper:]' '[:lower:]')
+  case ${plat} in
+    darwin)
+      plat='Darwin'
+      ;;
+    linux)
+      plat='linux'
+      ;;
+    windows)
+      plat='Windows'
+      ;;
+  esac
+
+  echo ${plat}
+}
+
+get_ext() {
+  plat=$(uname | tr '[:upper:]' '[:lower:]')
+  case ${plat} in
+    windows)
+      ext='zip'
+      ;;
+    *)
+      ext='tar.gz'
+      ;;
+  esac
+
+  echo ${ext}
+}
+
+get_download_url() {
+  local version
+  version="$1"
+  local arch
+  arch="$(get_arch)"
+  local platform
+  platform="$(get_platform)"
+  local ext
+  ext="$(get_ext)"
+  echo "https://github.com/open-policy-agent/conftest/releases/download/v${version}/conftest_${version}_${platform}_${arch}.${ext}"
+}
+
 download_release() {
   local version filename url
   version="$1"
-  filename="$2"
+  download_path="$2/$TOOL_NAME"
+  filename="$download_path/conftest-$version"
 
-  # TODO: Adapt the release URL convention for conftest
-  url="$GH_REPO/archive/v${version}.tar.gz"
+  mkdir -p "$download_path"
+
+  # REVIEW: Adapt the release URL convention for conftest
+  url="$(get_download_url "$version")"
+  ext="$(get_ext)"
 
   echo "* Downloading $TOOL_NAME release $version..."
-  curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
+  curl "${curl_opts[@]}" -o "$filename.$ext" -C - "$url" || fail "Could not download $url"
+
+  if [ "$ext" == "tar.gz" ]; then
+    tar xzf "$filename.tar.gz" -C "${download_path}"
+  else
+    unzip -qq "$filename.zip" -d "${download_path}"
+  fi
 }
 
 install_version() {
@@ -59,9 +132,9 @@ install_version() {
 
   (
     mkdir -p "$install_path"
-    cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
+    cp "$ASDF_DOWNLOAD_PATH/$TOOL_NAME/conftest" "$install_path"
 
-    # TODO: Assert conftest executable exists.
+    # REVIEW: Assert conftest executable exists.
     local tool_cmd
     tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
     test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
